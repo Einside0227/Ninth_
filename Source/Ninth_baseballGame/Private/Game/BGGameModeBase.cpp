@@ -15,8 +15,15 @@ void ABGGameModeBase::BeginPlay()
 
 void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString)
 {
-	int Index = InChatMessageString.Len() - 3;
-	FString GuessNumberString = InChatMessageString.RightChop(Index);
+	FString GuessNumberString = InChatMessageString;
+	
+	int32 ColonIndex;
+	if (InChatMessageString.FindLastChar(TEXT(':'), ColonIndex))
+	{
+		// : 다음부터 끝까지 잘라냄
+		GuessNumberString = InChatMessageString.Mid(ColonIndex + 1);
+		GuessNumberString.TrimStartAndEndInline(); // 앞뒤 공백 제거
+	}
 	if (IsGuessNumberString(GuessNumberString) == true) 
 	{
 		IncreaseGuessCount(InChattingPlayerController);
@@ -29,11 +36,17 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 			{
 				FString CombinedMessageString = InChatMessageString + TEXT(" -> ") + JudgeResultString;
 				BGPlayerController->ClientRPCPrintChatMessageString(CombinedMessageString);
-				
-				int32 StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
-				JudgeGame(InChattingPlayerController, StrikeCount);
+
 			}
 		}
+		
+		int32 StrikeCount = 0;
+		if (JudgeResultString != TEXT("OUT"))
+		{
+			StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
+		}
+
+		JudgeGame(InChattingPlayerController, StrikeCount);
 	}
 	else 
 	{
@@ -42,7 +55,7 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 			ABGPlayerController* BGPlayerController = *It;
 			if (IsValid(BGPlayerController) == true) 
 			{
-				BGPlayerController->ClientRPCPrintChatMessageString(InChatMessageString);
+				BGPlayerController->ClientRPCPrintChatMessageString(TEXT("다시 입력하세요"));
 			}
 		}
 	}
@@ -96,28 +109,27 @@ bool ABGGameModeBase::IsGuessNumberString(const FString& InNumberString)
 {
 	bool bCanPlay = false;
 
-	do {
+	do
+	{
+		// 3자리 숫자인가?
+		if (InNumberString.Len() != 3) break;
 
-		if (InNumberString.Len() != 3) break; // 3자리 숫자인가?
-
-		bool bIsUnique = true;
 		TSet<TCHAR> UniqueDigits;
-		for (TCHAR C : InNumberString) 
+
+		for (TCHAR C : InNumberString)
 		{
-			if (FChar::IsDigit(C) == false || C == '0')  // 문자가 포함되었는가?
-			{
-				bIsUnique = false;
-				break;
-			}
-			
+			// 문자가 포함되지는 않았는가?
+			if (FChar::IsDigit(C) == false || C == '0') break;
+
 			UniqueDigits.Add(C);
 		}
 
-		if (bIsUnique == false) break; // 중복되는 숫자인가?
+		// 중복되는 숫자가 있는가?
+		if (UniqueDigits.Num() != 3) break;
 
 		bCanPlay = true;
-		
-	} while (false);	
+
+	} while (false);
 
 	return bCanPlay;
 }
@@ -169,17 +181,17 @@ void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController,
 {
 	if (3 == InStrikeCount)
 	{
-		ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+		ABGPlayerState* IBGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
 		for (const auto& BGPlayerController : AllPlayerControllers)
 		{
-			if (IsValid(BGPS) == true)
+			if (IsValid(IBGPS) == true)
 			{
-				FString CombinedMessageString = BGPS->PlayerNameString + TEXT(" has won the game.");
+				FString CombinedMessageString = IBGPS->PlayerNameString + TEXT(" has won the game.");
 				BGPlayerController->NotificationText = FText::FromString(CombinedMessageString);
-
-				ResetGame();
 			}
 		}
+		
+		ResetGame();
 	}
 	else
 	{
@@ -202,9 +214,9 @@ void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController,
 			for (const auto& BGPlayerController : AllPlayerControllers)
 			{
 				BGPlayerController->NotificationText = FText::FromString(TEXT("Draw..."));
-
-				ResetGame();
 			}
+			
+			ResetGame();
 		}
 	}
 }
