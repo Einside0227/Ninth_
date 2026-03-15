@@ -17,24 +17,23 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 {
 	FString GuessNumberString = InChatMessageString;
 	
-	int32 ColonIndex;
-	if (InChatMessageString.FindLastChar(TEXT(':'), ColonIndex))
-	{
-		// : 다음부터 끝까지 잘라냄
-		GuessNumberString = InChatMessageString.Mid(ColonIndex + 1);
-		GuessNumberString.TrimStartAndEndInline(); // 앞뒤 공백 제거
-	}
 	if (IsGuessNumberString(GuessNumberString) == true) 
 	{
 		IncreaseGuessCount(InChattingPlayerController);
 		
+		ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
 		FString JudgeResultString = JudgeResult(SecretNumberString, GuessNumberString);
 		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) 
 		{
 			ABGPlayerController* BGPlayerController = *It;
 			if (IsValid(BGPlayerController) == true) 
 			{
-				FString CombinedMessageString = InChatMessageString + TEXT(" -> ") + JudgeResultString;
+				FString CombinedMessageString =
+					BGPS->GetPlayerInfoString()
+					+ TEXT(" : ")
+					+ GuessNumberString
+					+ TEXT(" -> ")
+					+ JudgeResultString;
 				BGPlayerController->ClientRPCPrintChatMessageString(CombinedMessageString);
 
 			}

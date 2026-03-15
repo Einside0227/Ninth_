@@ -46,13 +46,7 @@ void ABGPlayerController::SetChatMessageString(const FString& InChatMessageStrin
 	
 	if (IsLocalController() == true) 
 	{
-		ABGPlayerState* BGPS = GetPlayerState<ABGPlayerState>();
-		if (IsValid(BGPS) == true) 
-		{
-			FString CombinedMessageString = BGPS->GetPlayerInfoString() + TEXT(": ") + InChatMessageString;
-			
-			ServerRPCPrintChatMessageString(CombinedMessageString);
-		}
+		ServerRPCPrintChatMessageString(InChatMessageString);
 	}
 }
 
