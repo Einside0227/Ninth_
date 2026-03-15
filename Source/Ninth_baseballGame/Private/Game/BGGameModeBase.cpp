@@ -2,6 +2,7 @@
 
 #include "Game/BGGameStateBase.h"
 #include "Player/BGPlayerController.h"
+#include "Player/BGPlayerState.h"
 #include "EngineUtils.h"
 
 void ABGGameModeBase::BeginPlay()
@@ -17,6 +18,8 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 	int Index = InChatMessageString.Len() - 3;
 	FString GuessNumberString = InChatMessageString.RightChop(Index);
 	if (IsGuessNumberString(GuessNumberString) == true) {
+		IncreaseGuessCount(InChattingPlayerController);
+		
 		FString JudgeResultString = JudgeResult(SecretNumberString, GuessNumberString);
 		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) {
 			ABGPlayerController* BGPlayerController = *It;
@@ -40,14 +43,22 @@ void ABGGameModeBase::OnPostLogin(AController* NewPlayer)
 {
 	Super::OnPostLogin(NewPlayer);
 	
-	ABGGameStateBase* BGGameStateBase =  GetGameState<ABGGameStateBase>();
-	if (IsValid(BGGameStateBase) == true) {
-		BGGameStateBase->MulticastRPCBroadcastLoginMessage(TEXT("XXXXXXX"));
-	}
-	
 	ABGPlayerController* BGPlayerController = Cast<ABGPlayerController>(NewPlayer);
-	if (IsValid(BGPlayerController) == true) {
+	if (IsValid(BGPlayerController) == true)
+	{
 		AllPlayerControllers.Add(BGPlayerController);
+
+		ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
+		if (IsValid(BGPS) == true)
+		{
+			BGPS->PlayerNameString = TEXT("Player") + FString::FromInt(AllPlayerControllers.Num());
+		}
+
+		ABGGameStateBase* CXGameStateBase =  GetGameState<ABGGameStateBase>();
+		if (IsValid(CXGameStateBase) == true)
+		{
+			CXGameStateBase->MulticastRPCBroadcastLoginMessage(BGPS->PlayerNameString);
+		}
 	}
 }
 
@@ -112,4 +123,13 @@ FString ABGGameModeBase::JudgeResult(const FString& InSecretNumberString, const 
 	if (StrikeCount == 0 && BallCount == 0) return TEXT("OUT");
 
 	return FString::Printf(TEXT("%dS%dB"), StrikeCount, BallCount);
+}
+
+void ABGGameModeBase::IncreaseGuessCount(ABGPlayerController* InChattingPlayerController)
+{
+	ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+	if (IsValid(BGPS) == true)
+	{
+		BGPS->CurrentGuessCount++;
+	}
 }

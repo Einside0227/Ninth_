@@ -2,6 +2,7 @@
 
 #include "Ninth_baseballGame/Ninth_baseballGame.h"
 #include "UI/BGChatInput.h"
+#include "Player/BGPlayerState.h"
 #include "Kismet/GameplayStatics.h"
 #include "Game/BGGameModeBase.h"
 
@@ -27,7 +28,12 @@ void ABGPlayerController::SetChatMessageString(const FString& InChatMessageStrin
 	ChatMessageString = InChatMessageString;
 	
 	if (IsLocalController() == true) {
-		ServerRPCPrintChatMessageString(InChatMessageString);		
+		ABGPlayerState* BGPS = GetPlayerState<ABGPlayerState>();
+		if (IsValid(BGPS) == true) {
+			FString CombinedMessageString = BGPS->GetPlayerInfoString() + TEXT(": ") + InChatMessageString;
+			
+			ServerRPCPrintChatMessageString(CombinedMessageString);
+		}
 	}
 }
 

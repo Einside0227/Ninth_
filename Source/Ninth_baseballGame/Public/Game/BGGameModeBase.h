@@ -24,6 +24,8 @@ public:
 
 	FString JudgeResult(const FString& InSecretNumberString, const FString& InGuessNumberString);
 	
+	void IncreaseGuessCount(ABGPlayerController* InChattingPlayerController);
+	
 protected:
 	FString SecretNumberString;
 
