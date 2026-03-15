@@ -1,10 +1,11 @@
 #include "Player/BGPlayerController.h"
 
-#include "EngineUtils.h"
 #include "Ninth_baseballGame/Ninth_baseballGame.h"
 #include "UI/BGChatInput.h"
+#include "Kismet/GameplayStatics.h"
+#include "Game/BGGameModeBase.h"
 
-void ABGPlayerController::BeginPlay()
+void ABGPlayerController::BeginPlay() 
 {
 	Super::BeginPlay();
 	
@@ -13,44 +14,40 @@ void ABGPlayerController::BeginPlay()
 	FInputModeUIOnly InputModeUIOnly;
 	SetInputMode(InputModeUIOnly);
 
-	if (IsValid(ChatInputWidgetClass) == true)
-	{
+	if (IsValid(ChatInputWidgetClass) == true) 	{
 		ChatInputWidgetInstance = CreateWidget<UBGChatInput>(this, ChatInputWidgetClass);
-		if (IsValid(ChatInputWidgetInstance) == true)
-		{
+		if (IsValid(ChatInputWidgetInstance) == true) {
 			ChatInputWidgetInstance->AddToViewport();
 		}
 	}
 }
 
-void ABGPlayerController::SetChatMessageString(const FString& InChatMessageString)
+void ABGPlayerController::SetChatMessageString(const FString& InChatMessageString) 
 {
 	ChatMessageString = InChatMessageString;
-	//PrintChatMessageString(ChatMessageString);
-	if (IsLocalController() == true)
-	{
+	
+	if (IsLocalController() == true) {
 		ServerRPCPrintChatMessageString(InChatMessageString);		
 	}
 }
 
-void ABGPlayerController::PrintChatMessageString(const FString& InChatMessageString)
+void ABGPlayerController::PrintChatMessageString(const FString& InChatMessageString) 
 {
 	BGFunctionLibrary::MyPrintString(this, InChatMessageString, 10.f);
 }
 
-void ABGPlayerController::ClientRPCPrintChatMessageString_Implementation(const FString& InChatMessageString)
+void ABGPlayerController::ClientRPCPrintChatMessageString_Implementation(const FString& InChatMessageString) 
 {
 	PrintChatMessageString(InChatMessageString);
 }
 
-void ABGPlayerController::ServerRPCPrintChatMessageString_Implementation(const FString& InChatMessageString)
+void ABGPlayerController::ServerRPCPrintChatMessageString_Implementation(const FString& InChatMessageString) 
 {
-	for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It)
-	{
-		ABGPlayerController* BGPlayerController = *It;
-		if (IsValid(BGPlayerController) == true)
-		{
-			BGPlayerController->ClientRPCPrintChatMessageString(InChatMessageString);
+	AGameModeBase* GM = UGameplayStatics::GetGameMode(this);
+	if (IsValid(GM) == true) {
+		ABGGameModeBase* BGGM = Cast<ABGGameModeBase>(GM);
+		if (IsValid(BGGM) == true) {
+			BGGM->PrintChatMessageString(this, InChatMessageString);
 		}
 	}
 }
