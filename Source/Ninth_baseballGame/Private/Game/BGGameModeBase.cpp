@@ -15,13 +15,22 @@ void ABGGameModeBase::BeginPlay()
 
 void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString)
 {
+	ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+	if (IsValid(BGPS) == true)
+	{
+		if (BGPS->CurrentGuessCount >= BGPS->MaxGuessCount)
+		{
+			InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("더 이상 입력할 수 없습니다."));
+			return;
+		}
+	}
+	
 	FString GuessNumberString = InChatMessageString;
 	
 	if (IsGuessNumberString(GuessNumberString) == true) 
 	{
 		IncreaseGuessCount(InChattingPlayerController);
 		
-		ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
 		FString JudgeResultString = JudgeResult(SecretNumberString, GuessNumberString);
 		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) 
 		{
@@ -183,7 +192,7 @@ void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController,
 		ABGPlayerState* IBGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
 		for (const auto& BGPlayerController : AllPlayerControllers)
 		{
-			if (IsValid(IBGPS) == true)
+			if (IsValid(IBGPS) == true) // 승리 판정
 			{
 				FString CombinedMessageString = IBGPS->PlayerNameString + TEXT(" has won the game.");
 				BGPlayerController->NotificationText = FText::FromString(CombinedMessageString);
@@ -208,7 +217,7 @@ void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController,
 			}
 		}
 
-		if (true == bIsDraw)
+		if (true == bIsDraw)  // 무승부 판정
 		{
 			for (const auto& BGPlayerController : AllPlayerControllers)
 			{
