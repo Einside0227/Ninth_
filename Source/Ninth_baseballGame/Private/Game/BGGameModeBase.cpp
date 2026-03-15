@@ -17,22 +17,31 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 {
 	int Index = InChatMessageString.Len() - 3;
 	FString GuessNumberString = InChatMessageString.RightChop(Index);
-	if (IsGuessNumberString(GuessNumberString) == true) {
+	if (IsGuessNumberString(GuessNumberString) == true) 
+	{
 		IncreaseGuessCount(InChattingPlayerController);
 		
 		FString JudgeResultString = JudgeResult(SecretNumberString, GuessNumberString);
-		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) {
+		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) 
+		{
 			ABGPlayerController* BGPlayerController = *It;
-			if (IsValid(BGPlayerController) == true) {
+			if (IsValid(BGPlayerController) == true) 
+			{
 				FString CombinedMessageString = InChatMessageString + TEXT(" -> ") + JudgeResultString;
 				BGPlayerController->ClientRPCPrintChatMessageString(CombinedMessageString);
+				
+				int32 StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
+				JudgeGame(InChattingPlayerController, StrikeCount);
 			}
 		}
 	}
-	else {
-		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) {
+	else 
+	{
+		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) 
+		{
 			ABGPlayerController* BGPlayerController = *It;
-			if (IsValid(BGPlayerController) == true) {
+			if (IsValid(BGPlayerController) == true) 
+			{
 				BGPlayerController->ClientRPCPrintChatMessageString(InChatMessageString);
 			}
 		}
@@ -46,18 +55,20 @@ void ABGGameModeBase::OnPostLogin(AController* NewPlayer)
 	ABGPlayerController* BGPlayerController = Cast<ABGPlayerController>(NewPlayer);
 	if (IsValid(BGPlayerController) == true)
 	{
+		BGPlayerController->NotificationText = FText::FromString(TEXT("Connected to the game server."));
+		
 		AllPlayerControllers.Add(BGPlayerController);
-
+		
 		ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
 		if (IsValid(BGPS) == true)
 		{
 			BGPS->PlayerNameString = TEXT("Player") + FString::FromInt(AllPlayerControllers.Num());
 		}
 
-		ABGGameStateBase* CXGameStateBase =  GetGameState<ABGGameStateBase>();
-		if (IsValid(CXGameStateBase) == true)
+		ABGGameStateBase* BGGameStateBase =  GetGameState<ABGGameStateBase>();
+		if (IsValid(BGGameStateBase) == true)
 		{
-			CXGameStateBase->MulticastRPCBroadcastLoginMessage(BGPS->PlayerNameString);
+			BGGameStateBase->MulticastRPCBroadcastLoginMessage(BGPS->PlayerNameString);
 		}
 	}
 }
@@ -71,7 +82,8 @@ FString ABGGameModeBase::GenerateSecretNumber()
 	Numbers = Numbers.FilterByPredicate([](int32 Num) { return Num > 0; });
 	
 	FString Result;
-	for (int32 i = 0; i < 3; ++i) {
+	for (int32 i = 0; i < 3; ++i) 
+	{
 		int32 Index = FMath::RandRange(0, Numbers.Num() - 1);
 		Result.Append(FString::FromInt(Numbers[Index]));
 		Numbers.RemoveAt(Index);
@@ -86,12 +98,14 @@ bool ABGGameModeBase::IsGuessNumberString(const FString& InNumberString)
 
 	do {
 
-		if (InNumberString.Len() != 3) break;
+		if (InNumberString.Len() != 3) break; // 3자리 숫자인가?
 
 		bool bIsUnique = true;
 		TSet<TCHAR> UniqueDigits;
-		for (TCHAR C : InNumberString) {
-			if (FChar::IsDigit(C) == false || C == '0') {
+		for (TCHAR C : InNumberString) 
+		{
+			if (FChar::IsDigit(C) == false || C == '0')  // 문자가 포함되었는가?
+			{
 				bIsUnique = false;
 				break;
 			}
@@ -99,7 +113,7 @@ bool ABGGameModeBase::IsGuessNumberString(const FString& InNumberString)
 			UniqueDigits.Add(C);
 		}
 
-		if (bIsUnique == false) break;
+		if (bIsUnique == false) break; // 중복되는 숫자인가?
 
 		bCanPlay = true;
 		
@@ -112,9 +126,11 @@ FString ABGGameModeBase::JudgeResult(const FString& InSecretNumberString, const 
 {
 	int32 StrikeCount = 0, BallCount = 0;
 
-	for (int32 i = 0; i < 3; ++i) 	{
+	for (int32 i = 0; i < 3; ++i)
+	{
 		if (InSecretNumberString[i] == InGuessNumberString[i]) StrikeCount++;
-		else {
+		else 
+		{
 			FString PlayerGuessChar = FString::Printf(TEXT("%c"), InGuessNumberString[i]);
 			if (InSecretNumberString.Contains(PlayerGuessChar)) BallCount++;
 		}
@@ -131,5 +147,64 @@ void ABGGameModeBase::IncreaseGuessCount(ABGPlayerController* InChattingPlayerCo
 	if (IsValid(BGPS) == true)
 	{
 		BGPS->CurrentGuessCount++;
+	}
+}
+
+void ABGGameModeBase::ResetGame()
+{
+	SecretNumberString = GenerateSecretNumber();
+	UE_LOG(LogTemp, Error, TEXT("%s"), *SecretNumberString);
+	
+	for (const auto& BGPlayerController : AllPlayerControllers)
+	{
+		ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
+		if (IsValid(BGPS) == true)
+		{
+			BGPS->CurrentGuessCount = 0;
+		}
+	}
+}
+
+void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController, int InStrikeCount)
+{
+	if (3 == InStrikeCount)
+	{
+		ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+		for (const auto& BGPlayerController : AllPlayerControllers)
+		{
+			if (IsValid(BGPS) == true)
+			{
+				FString CombinedMessageString = BGPS->PlayerNameString + TEXT(" has won the game.");
+				BGPlayerController->NotificationText = FText::FromString(CombinedMessageString);
+
+				ResetGame();
+			}
+		}
+	}
+	else
+	{
+		bool bIsDraw = true;
+		for (const auto& BGPlayerController : AllPlayerControllers)
+		{
+			ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
+			if (IsValid(BGPS) == true)
+			{
+				if (BGPS->CurrentGuessCount < BGPS->MaxGuessCount)
+				{
+					bIsDraw = false;
+					break;
+				}
+			}
+		}
+
+		if (true == bIsDraw)
+		{
+			for (const auto& BGPlayerController : AllPlayerControllers)
+			{
+				BGPlayerController->NotificationText = FText::FromString(TEXT("Draw..."));
+
+				ResetGame();
+			}
+		}
 	}
 }
