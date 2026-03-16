@@ -100,7 +100,7 @@ bool ABGGameModeBase::CanPlayNumberBaseball() const
 void ABGGameModeBase::StartTurn()
 {
 	bDidSubmitThisTurn = false;
-	
+
 	ABGPlayerController* CurrentTurnPC = GetCurrentTurnPlayerController();
 	ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
 
@@ -112,7 +112,7 @@ void ABGGameModeBase::StartTurn()
 			BGGameState->CurrentTurnPlayerName = BGPS->PlayerNameString;
 		}
 	}
-	
+
 	StartRoundTimer();
 }
 
@@ -126,7 +126,7 @@ void ABGGameModeBase::EndTurn()
 	ABGPlayerState* BGPS = CurrentTurnPC->GetPlayerState<ABGPlayerState>();
 	if (IsValid(BGPS) == false) return;
 
-	// 입력 안 했을 때만 안내
+	// 입력 안 했을 때
 	if (bDidSubmitThisTurn == false)
 	{
 		IncreaseGuessCount(CurrentTurnPC);
@@ -151,12 +151,7 @@ void ABGGameModeBase::EndTurn()
 	// 무승부
 	if (bIsDraw == true)
 	{
-		for (const auto& BGPlayerController : AllPlayerControllers)
-		{
-			BGPlayerController->NotificationText = FText::FromString(TEXT("Draw..."));
-		}
-
-		ResetGame();
+		ShowResultToAllPlayers(FText::FromString(TEXT("Draw...")));
 		return;
 	}
 
@@ -203,6 +198,9 @@ ABGPlayerController* ABGGameModeBase::GetCurrentTurnPlayerController() const
 
 void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString)
 {
+	// 결과창 떠 있는 동안 입력 불가
+	if (bIsWaitingRestart == true) return;
+	
 	// 시간이 끝나면 입력 불가
 	if (CanPlayNumberBaseball() == false) return;
 	
@@ -350,47 +348,74 @@ void ABGGameModeBase::IncreaseGuessCount(ABGPlayerController* InChattingPlayerCo
 	}
 }
 
-void ABGGameModeBase::ResetGame()
+void ABGGameModeBase::ResetGame(ABGPlayerController* InStartingPlayerController)
 {
 	SecretNumberString = GenerateSecretNumber();
 	UE_LOG(LogTemp, Error, TEXT("%s"), *SecretNumberString);
-	
+
 	for (const auto& BGPlayerController : AllPlayerControllers)
 	{
 		ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
-		if (IsValid(BGPS) == true)
+		if (IsValid(BGPS))
 		{
 			BGPS->CurrentGuessCount = 0;
 		}
+
+		if (IsValid(BGPlayerController))
+		{
+			BGPlayerController->ClientRPCHideResultWidget();
+		}
 	}
-	
+
 	ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
 	if (IsValid(BGGameState))
 	{
 		BGGameState->RemainingTime = BGGameState->MaxTime;
+		BGGameState->CurrentTurnPlayerName = TEXT("");
+		BGGameState->ForceNetUpdate();
 	}
-	
-	CurrentTurnPlayerIndex = 0;
+
 	bDidSubmitThisTurn = false;
+	bIsWaitingRestart = false;
+
+	// 리스타트 누른 플레이어를 시작 턴으로 설정
+	if (IsValid(InStartingPlayerController))
+	{
+		int32 FoundIndex = AllPlayerControllers.IndexOfByKey(InStartingPlayerController);
+		CurrentTurnPlayerIndex = (FoundIndex != INDEX_NONE) ? FoundIndex : 0;
+	}
+	else
+	{
+		CurrentTurnPlayerIndex = 0;
+	}
 
 	StopRoundTimer();
-	StartRoundTimer();
+	StartTurn();
 }
 
 void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController, int InStrikeCount)
 {
 	if (3 == InStrikeCount)
 	{
-		ABGPlayerState* IBGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
-		for (const auto& BGPlayerController : AllPlayerControllers)
+		ABGPlayerState* WinnerPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+		if (IsValid(WinnerPS))
 		{
-			if (IsValid(IBGPS) == true) // 승리 판정
-			{
-				FString CombinedMessageString = IBGPS->PlayerNameString + TEXT(" has won the game.");
-				BGPlayerController->NotificationText = FText::FromString(CombinedMessageString);
-			}
+			FString ResultString = WinnerPS->PlayerNameString + TEXT(" Wins!");
+			ShowResultToAllPlayers(FText::FromString(ResultString));
 		}
-		
-		ResetGame();
+	}
+}
+
+void ABGGameModeBase::ShowResultToAllPlayers(const FText& InResultText)
+{
+	bIsWaitingRestart = true;
+	StopRoundTimer();
+
+	for (const auto& BGPlayerController : AllPlayerControllers)
+	{
+		if (IsValid(BGPlayerController))
+		{
+			BGPlayerController->ClientRPCShowResultWidget(InResultText);
+		}
 	}
 }

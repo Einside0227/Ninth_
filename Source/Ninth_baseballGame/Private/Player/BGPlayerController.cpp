@@ -2,8 +2,8 @@
 
 #include "Ninth_baseballGame/Ninth_baseballGame.h"
 #include "UI/BGChatInput.h"
-#include "Player/BGPlayerState.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/TextBlock.h"
 #include "Game/BGGameModeBase.h"
 #include "Net/UnrealNetwork.h"
 
@@ -38,6 +38,23 @@ void ABGPlayerController::BeginPlay()
 			NotificationTextWidgetInstance->AddToViewport();
 		}
 	}
+	
+	if (IsValid(ResultWidgetClass) == true)
+	{
+		ResultWidgetInstance = CreateWidget<UUserWidget>(this, ResultWidgetClass);
+		if (IsValid(ResultWidgetInstance) == true)
+		{
+			ResultWidgetInstance->AddToViewport(100);
+			ResultWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+}
+
+void ABGPlayerController::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	DOREPLIFETIME(ThisClass, NotificationText);
 }
 
 void ABGPlayerController::SetChatMessageString(const FString& InChatMessageString) 
@@ -55,11 +72,37 @@ void ABGPlayerController::PrintChatMessageString(const FString& InChatMessageStr
 	BGFunctionLibrary::MyPrintString(this, InChatMessageString, 10.f);
 }
 
-void ABGPlayerController::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
+void ABGPlayerController::ServerRPCRequestRestart_Implementation()
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	
-	DOREPLIFETIME(ThisClass, NotificationText);
+	AGameModeBase* GM = UGameplayStatics::GetGameMode(this);
+	if (IsValid(GM))
+	{
+		ABGGameModeBase* BGGM = Cast<ABGGameModeBase>(GM);
+		if (IsValid(BGGM))
+		{
+			BGGM->ResetGame(this);
+		}
+	}
+}
+
+void ABGPlayerController::ClientRPCHideResultWidget_Implementation()
+{
+	if (IsValid(ResultWidgetInstance))
+	{
+		ResultWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void ABGPlayerController::ClientRPCShowResultWidget_Implementation(const FText& InResultText)
+{
+	if (IsValid(ResultWidgetInstance) == false) return;
+
+	ResultWidgetInstance->SetVisibility(ESlateVisibility::Visible);
+
+	if (UTextBlock* ResultTextBlock = Cast<UTextBlock>(ResultWidgetInstance->GetWidgetFromName(TEXT("ResultText"))))
+	{
+		ResultTextBlock->SetText(InResultText);
+	}
 }
 
 void ABGPlayerController::ClientRPCPrintChatMessageString_Implementation(const FString& InChatMessageString) 

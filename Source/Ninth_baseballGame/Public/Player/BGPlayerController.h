@@ -15,10 +15,11 @@ class NINTH_BASEBALLGAME_API ABGPlayerController : public APlayerController
 	
 public:
 	ABGPlayerController();
+	
 	virtual void BeginPlay() override;
+	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
 	
 	void SetChatMessageString(const FString& InChatMessageString);
-	
 	void PrintChatMessageString(const FString& InChatMessageString);
 	
 	UFUNCTION(Client, Reliable)
@@ -26,22 +27,41 @@ public:
 
 	UFUNCTION(Server, Reliable)
 	void ServerRPCPrintChatMessageString(const FString& InChatMessageString);
+	
+	// 결과창 표시
+	UFUNCTION(Client, Reliable)
+	void ClientRPCShowResultWidget(const FText& InResultText);
 
-	virtual void GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const override;
+	// 결과창 숨김
+	UFUNCTION(Client, Reliable)
+	void ClientRPCHideResultWidget();
+
+	// Restart 버튼 눌렀을 때 서버에 재시작 요청
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+	void ServerRPCRequestRestart();
+
+
 protected:
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditAnywhere, Category="UI")
 	TSubclassOf<UBGChatInput> ChatInputWidgetClass;
-	
+
 	UPROPERTY()
-	TObjectPtr<UBGChatInput> ChatInputWidgetInstance;	
-	
-	FString ChatMessageString;
-	
-	UPROPERTY(EditDefaultsOnly)
+	TObjectPtr<UBGChatInput> ChatInputWidgetInstance;
+
+	UPROPERTY(EditAnywhere, Category="UI")
 	TSubclassOf<UUserWidget> NotificationTextWidgetClass;
-	
+
 	UPROPERTY()
 	TObjectPtr<UUserWidget> NotificationTextWidgetInstance;
+	
+	// 결과 위젯 블루프린트
+	UPROPERTY(EditAnywhere, Category="UI")
+	TSubclassOf<UUserWidget> ResultWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> ResultWidgetInstance;
+	
+	FString ChatMessageString;
 	
 public:
 	UPROPERTY(Replicated, BlueprintReadOnly)

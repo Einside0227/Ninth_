@@ -37,8 +37,11 @@ public:
 	FString JudgeResult(const FString& InSecretNumberString, const FString& InGuessNumberString);
 	
 	void IncreaseGuessCount(ABGPlayerController* InChattingPlayerController);
-	void ResetGame();
+	void ResetGame(ABGPlayerController* InStartingPlayerController);
 	void JudgeGame(ABGPlayerController* InChattingPlayerController, int InStrikeCount);
+	
+	// 결과창
+	void ShowResultToAllPlayers(const FText& InResultText);
 	
 protected:
 	FString SecretNumberString;
@@ -52,4 +55,6 @@ protected:
 
 	// 이번 턴에 숫자를 입력했는지 여부
 	bool bDidSubmitThisTurn = false;
+	
+	bool bIsWaitingRestart = false;
 };
