@@ -1,7 +1,14 @@
 #include "Game/BGGameStateBase.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "Net/UnrealNetwork.h"
 #include "Player/BGPlayerController.h"
+
+ABGGameStateBase::ABGGameStateBase()
+{
+	RemainingTime = 10;
+	MaxTime = 10;
+}
 
 void ABGGameStateBase::MulticastRPCBroadcastLoginMessage_Implementation(const FString& InNameString) 
 {
@@ -18,4 +25,11 @@ void ABGGameStateBase::MulticastRPCBroadcastLoginMessage_Implementation(const FS
 			}
 		}
 	}
+}
+
+void ABGGameStateBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	
+	DOREPLIFETIME(ABGGameStateBase, RemainingTime);
 }

@@ -10,6 +10,16 @@ class NINTH_BASEBALLGAME_API ABGGameStateBase : public AGameStateBase
 	GENERATED_BODY()
 	
 public:
+	ABGGameStateBase();
+	
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastRPCBroadcastLoginMessage(const FString& InNameString = FString(TEXT("XXXXXXX")));
+	
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	
+	UPROPERTY(Replicated, BlueprintReadOnly)
+	int32 RemainingTime;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	int32 MaxTime;
 };

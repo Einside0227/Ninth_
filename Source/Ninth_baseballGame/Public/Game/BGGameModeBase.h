@@ -14,6 +14,12 @@ class NINTH_BASEBALLGAME_API ABGGameModeBase : public AGameModeBase
 public:
 	virtual void BeginPlay() override;
 	
+	void TickTimer();
+	void StartRoundTimer();
+	void StopRoundTimer();
+
+	bool CanPlayNumberBaseball() const;
+	
 	void PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString);
 	
 	virtual void OnPostLogin(AController* NewPlayer) override;
@@ -33,4 +39,6 @@ protected:
 	FString SecretNumberString;
 
 	TArray<TObjectPtr<ABGPlayerController>> AllPlayerControllers;
+	
+	FTimerHandle RoundTimerHandle;
 };

@@ -4,6 +4,7 @@
 #include "Player/BGPlayerController.h"
 #include "Player/BGPlayerState.h"
 #include "EngineUtils.h"
+#include "TimerManager.h"
 
 void ABGGameModeBase::BeginPlay()
 {
@@ -11,18 +12,83 @@ void ABGGameModeBase::BeginPlay()
 	
 	SecretNumberString = GenerateSecretNumber();
 	UE_LOG(LogTemp, Error, TEXT("%s"), *SecretNumberString);
+	
+	StartRoundTimer();
+}
+
+void ABGGameModeBase::TickTimer()
+{
+	ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
+	if (IsValid(BGGameState) == false) return;
+
+	if (BGGameState->RemainingTime > 0)
+	{
+		BGGameState->RemainingTime--;
+	}
+
+	if (BGGameState->RemainingTime <= 0)
+	{
+		BGGameState->RemainingTime = 0;
+		StopRoundTimer();
+
+		for (const auto& BGPlayerController : AllPlayerControllers)
+		{
+			if (IsValid(BGPlayerController))
+			{
+				BGPlayerController->ClientRPCPrintChatMessageString(TEXT("시간이 종료되었습니다."));
+			}
+		}
+	}
+}
+
+void ABGGameModeBase::StartRoundTimer()
+{
+	ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
+	if (IsValid(BGGameState))
+	{
+		BGGameState->RemainingTime = BGGameState->MaxTime;
+	}
+
+	GetWorldTimerManager().SetTimer(
+		RoundTimerHandle,
+		this,
+		&ABGGameModeBase::TickTimer,
+		1.0f,
+		true
+	);
+}
+
+void ABGGameModeBase::StopRoundTimer()
+{
+	GetWorldTimerManager().ClearTimer(RoundTimerHandle);
+}
+
+bool ABGGameModeBase::CanPlayNumberBaseball() const
+{
+	const ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
+	if (IsValid(BGGameState) == false) return false;
+
+	return BGGameState->RemainingTime > 0;
 }
 
 void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString)
 {
-	ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
-	if (IsValid(BGPS) == true)
+	if (CanPlayNumberBaseball() == false)
 	{
-		if (BGPS->CurrentGuessCount >= BGPS->MaxGuessCount)
+		if (IsValid(InChattingPlayerController))
 		{
-			InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("더 이상 입력할 수 없습니다."));
-			return;
+			InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("시간이 종료되어 더 이상 입력할 수 없습니다."));
 		}
+		return;
+	}
+	
+	ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+	if (IsValid(BGPS) == false) return;
+
+	if (BGPS->CurrentGuessCount >= BGPS->MaxGuessCount)
+	{
+		InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("더 이상 입력할 수 없습니다."));
+		return;
 	}
 	
 	FString GuessNumberString = InChatMessageString;
@@ -58,13 +124,9 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 	}
 	else 
 	{
-		for (TActorIterator<ABGPlayerController> It(GetWorld()); It; ++It) 
+		if (IsValid(InChattingPlayerController) == true)
 		{
-			ABGPlayerController* BGPlayerController = *It;
-			if (IsValid(BGPlayerController) == true) 
-			{
-				BGPlayerController->ClientRPCPrintChatMessageString(TEXT("다시 입력하세요"));
-			}
+			InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("다시 입력하세요"));
 		}
 	}
 }
@@ -183,6 +245,15 @@ void ABGGameModeBase::ResetGame()
 			BGPS->CurrentGuessCount = 0;
 		}
 	}
+	
+	ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
+	if (IsValid(BGGameState))
+	{
+		BGGameState->RemainingTime = BGGameState->MaxTime;
+	}
+
+	StopRoundTimer();
+	StartRoundTimer();
 }
 
 void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController, int InStrikeCount)
