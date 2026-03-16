@@ -30,14 +30,6 @@ void ABGGameModeBase::TickTimer()
 	{
 		BGGameState->RemainingTime = 0;
 		StopRoundTimer();
-
-		for (const auto& BGPlayerController : AllPlayerControllers)
-		{
-			if (IsValid(BGPlayerController))
-			{
-				BGPlayerController->ClientRPCPrintChatMessageString(TEXT("시간이 종료되었습니다."));
-			}
-		}
 	}
 }
 
@@ -73,6 +65,7 @@ bool ABGGameModeBase::CanPlayNumberBaseball() const
 
 void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString)
 {
+	// 시간 종료
 	if (CanPlayNumberBaseball() == false)
 	{
 		if (IsValid(InChattingPlayerController))
@@ -81,7 +74,7 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 		}
 		return;
 	}
-	
+	// 기회 소진
 	ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
 	if (IsValid(BGPS) == false) return;
 
