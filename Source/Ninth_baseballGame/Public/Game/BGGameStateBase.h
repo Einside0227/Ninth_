@@ -22,4 +22,7 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
 	int32 MaxTime;
+	
+	UPROPERTY(Replicated, BlueprintReadOnly)
+	FString CurrentTurnPlayerName;
 };

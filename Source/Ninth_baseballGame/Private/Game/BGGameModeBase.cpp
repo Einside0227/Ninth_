@@ -13,7 +13,38 @@ void ABGGameModeBase::BeginPlay()
 	SecretNumberString = GenerateSecretNumber();
 	UE_LOG(LogTemp, Error, TEXT("%s"), *SecretNumberString);
 	
-	StartRoundTimer();
+	StartTurn();
+}
+
+void ABGGameModeBase::OnPostLogin(AController* NewPlayer) 
+{
+	Super::OnPostLogin(NewPlayer);
+	
+	ABGPlayerController* BGPlayerController = Cast<ABGPlayerController>(NewPlayer);
+	if (IsValid(BGPlayerController) == true)
+	{
+		BGPlayerController->NotificationText = FText::FromString(TEXT("Connected to the game server."));
+		
+		AllPlayerControllers.Add(BGPlayerController);
+		
+		ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
+		if (IsValid(BGPS) == true)
+		{
+			BGPS->PlayerNameString = TEXT("Player") + FString::FromInt(AllPlayerControllers.Num());
+		}
+
+		ABGGameStateBase* BGGameStateBase =  GetGameState<ABGGameStateBase>();
+		if (IsValid(BGGameStateBase) == true && IsValid(BGPS) == true)
+		{
+			BGGameStateBase->MulticastRPCBroadcastLoginMessage(BGPS->PlayerNameString);
+			
+			if (AllPlayerControllers.Num() == 1)
+			{
+				CurrentTurnPlayerIndex = 0;
+				BGGameStateBase->CurrentTurnPlayerName = BGPS->PlayerNameString;
+			}
+		}
+	}
 }
 
 void ABGGameModeBase::TickTimer()
@@ -30,6 +61,9 @@ void ABGGameModeBase::TickTimer()
 	{
 		BGGameState->RemainingTime = 0;
 		StopRoundTimer();
+		
+		// 턴 내에 입력하지 않았으면 턴 종료 + 기회 차감
+		EndTurn();
 	}
 }
 
@@ -63,21 +97,127 @@ bool ABGGameModeBase::CanPlayNumberBaseball() const
 	return BGGameState->RemainingTime > 0;
 }
 
-void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString)
+void ABGGameModeBase::StartTurn()
 {
-	// 시간 종료
-	if (CanPlayNumberBaseball() == false)
+	bDidSubmitThisTurn = false;
+	
+	ABGPlayerController* CurrentTurnPC = GetCurrentTurnPlayerController();
+	ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
+
+	if (IsValid(CurrentTurnPC) && IsValid(BGGameState))
 	{
-		if (IsValid(InChattingPlayerController))
+		ABGPlayerState* BGPS = CurrentTurnPC->GetPlayerState<ABGPlayerState>();
+		if (IsValid(BGPS))
 		{
-			InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("시간이 종료되어 더 이상 입력할 수 없습니다."));
+			BGGameState->CurrentTurnPlayerName = BGPS->PlayerNameString;
 		}
-		return;
 	}
-	// 기회 소진
-	ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+	
+	StartRoundTimer();
+}
+
+void ABGGameModeBase::EndTurn()
+{
+	StopRoundTimer();
+	
+	ABGPlayerController* CurrentTurnPC = GetCurrentTurnPlayerController();
+	if (IsValid(CurrentTurnPC) == false) return;
+
+	ABGPlayerState* BGPS = CurrentTurnPC->GetPlayerState<ABGPlayerState>();
 	if (IsValid(BGPS) == false) return;
 
+	// 입력 안 했을 때만 안내
+	if (bDidSubmitThisTurn == false)
+	{
+		IncreaseGuessCount(CurrentTurnPC);
+		CurrentTurnPC->ClientRPCPrintChatMessageString(TEXT("입력하지 않아 기회가 차감되었습니다."));
+	}
+
+	// 모든 플레이어가 기회를 다 썼는지 확인
+	bool bIsDraw = true;
+	for (const auto& BGPlayerController : AllPlayerControllers)
+	{
+		ABGPlayerState* OtherPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
+		if (IsValid(OtherPS) == true)
+		{
+			if (OtherPS->CurrentGuessCount < OtherPS->MaxGuessCount)
+			{
+				bIsDraw = false;
+				break;
+			}
+		}
+	}
+
+	// 무승부
+	if (bIsDraw == true)
+	{
+		for (const auto& BGPlayerController : AllPlayerControllers)
+		{
+			BGPlayerController->NotificationText = FText::FromString(TEXT("Draw..."));
+		}
+
+		ResetGame();
+		return;
+	}
+
+	NextTurn();
+}
+
+void ABGGameModeBase::NextTurn()
+{
+	if (AllPlayerControllers.Num() == 0) return;
+
+	// 다음 플레이어로 이동
+	CurrentTurnPlayerIndex = (CurrentTurnPlayerIndex + 1) % AllPlayerControllers.Num();
+
+	// 이미 기회를 다 쓴 플레이어는 건너뜀
+	int32 LoopCount = 0;
+	while (LoopCount < AllPlayerControllers.Num())
+	{
+		ABGPlayerController* NextPC = GetCurrentTurnPlayerController();
+		if (IsValid(NextPC))
+		{
+			ABGPlayerState* NextPS = NextPC->GetPlayerState<ABGPlayerState>();
+			if (IsValid(NextPS) && NextPS->CurrentGuessCount < NextPS->MaxGuessCount)
+			{
+				break;
+			}
+		}
+
+		CurrentTurnPlayerIndex = (CurrentTurnPlayerIndex + 1) % AllPlayerControllers.Num();
+		LoopCount++;
+	}
+
+	StartTurn();
+}
+
+ABGPlayerController* ABGGameModeBase::GetCurrentTurnPlayerController() const
+{
+	if (AllPlayerControllers.IsValidIndex(CurrentTurnPlayerIndex))
+	{
+		return AllPlayerControllers[CurrentTurnPlayerIndex];
+	}
+
+	return nullptr;
+}
+
+void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlayerController, const FString& InChatMessageString)
+{
+	// 시간이 끝나면 입력 불가
+	if (CanPlayNumberBaseball() == false) return;
+	
+	// 현재 턴 플레이어만 입력 가능
+	ABGPlayerController* CurrentTurnPC = GetCurrentTurnPlayerController();
+	if (InChattingPlayerController != CurrentTurnPC)
+	{
+		InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("지금은 당신의 턴이 아닙니다."));
+		return;
+	}
+	
+	ABGPlayerState* BGPS = InChattingPlayerController->GetPlayerState<ABGPlayerState>();
+	if (IsValid(BGPS) == false) return;
+	
+	// 기회 소진 (턴이 지나가지만 예외용)
 	if (BGPS->CurrentGuessCount >= BGPS->MaxGuessCount)
 	{
 		InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("더 이상 입력할 수 없습니다."));
@@ -88,6 +228,8 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 	
 	if (IsGuessNumberString(GuessNumberString) == true) 
 	{
+		bDidSubmitThisTurn = true;
+		
 		IncreaseGuessCount(InChattingPlayerController);
 		
 		FString JudgeResultString = JudgeResult(SecretNumberString, GuessNumberString);
@@ -113,38 +255,21 @@ void ABGGameModeBase::PrintChatMessageString(ABGPlayerController* InChattingPlay
 			StrikeCount = FCString::Atoi(*JudgeResultString.Left(1));
 		}
 
-		JudgeGame(InChattingPlayerController, StrikeCount);
+		// 승리 판정
+		if (StrikeCount == 3)
+		{
+			IncreaseGuessCount(InChattingPlayerController);
+			JudgeGame(InChattingPlayerController, StrikeCount);
+			return;
+		}
+
+		EndTurn();
 	}
 	else 
 	{
 		if (IsValid(InChattingPlayerController) == true)
 		{
 			InChattingPlayerController->ClientRPCPrintChatMessageString(TEXT("다시 입력하세요"));
-		}
-	}
-}
-
-void ABGGameModeBase::OnPostLogin(AController* NewPlayer) 
-{
-	Super::OnPostLogin(NewPlayer);
-	
-	ABGPlayerController* BGPlayerController = Cast<ABGPlayerController>(NewPlayer);
-	if (IsValid(BGPlayerController) == true)
-	{
-		BGPlayerController->NotificationText = FText::FromString(TEXT("Connected to the game server."));
-		
-		AllPlayerControllers.Add(BGPlayerController);
-		
-		ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
-		if (IsValid(BGPS) == true)
-		{
-			BGPS->PlayerNameString = TEXT("Player") + FString::FromInt(AllPlayerControllers.Num());
-		}
-
-		ABGGameStateBase* BGGameStateBase =  GetGameState<ABGGameStateBase>();
-		if (IsValid(BGGameStateBase) == true)
-		{
-			BGGameStateBase->MulticastRPCBroadcastLoginMessage(BGPS->PlayerNameString);
 		}
 	}
 }
@@ -244,6 +369,9 @@ void ABGGameModeBase::ResetGame()
 	{
 		BGGameState->RemainingTime = BGGameState->MaxTime;
 	}
+	
+	CurrentTurnPlayerIndex = 0;
+	bDidSubmitThisTurn = false;
 
 	StopRoundTimer();
 	StartRoundTimer();
@@ -264,31 +392,5 @@ void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController,
 		}
 		
 		ResetGame();
-	}
-	else
-	{
-		bool bIsDraw = true;
-		for (const auto& BGPlayerController : AllPlayerControllers)
-		{
-			ABGPlayerState* BGPS = BGPlayerController->GetPlayerState<ABGPlayerState>();
-			if (IsValid(BGPS) == true)
-			{
-				if (BGPS->CurrentGuessCount < BGPS->MaxGuessCount)
-				{
-					bIsDraw = false;
-					break;
-				}
-			}
-		}
-
-		if (true == bIsDraw)  // 무승부 판정
-		{
-			for (const auto& BGPlayerController : AllPlayerControllers)
-			{
-				BGPlayerController->NotificationText = FText::FromString(TEXT("Draw..."));
-			}
-			
-			ResetGame();
-		}
 	}
 }
