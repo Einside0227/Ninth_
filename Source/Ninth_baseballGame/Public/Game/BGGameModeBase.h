@@ -40,6 +40,9 @@ public:
 	void ResetGame(ABGPlayerController* InStartingPlayerController);
 	void JudgeGame(ABGPlayerController* InChattingPlayerController, int InStrikeCount);
 	
+	// 게임 시작
+	void StartGameByPlayer(ABGPlayerController* InStartingPlayerController);
+	
 	// 결과창
 	void ShowResultToAllPlayers(const FText& InResultText);
 	

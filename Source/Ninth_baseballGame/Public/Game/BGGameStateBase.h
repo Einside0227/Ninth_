@@ -25,4 +25,7 @@ public:
 	
 	UPROPERTY(Replicated, BlueprintReadOnly)
 	FString CurrentTurnPlayerName;
+	
+	UPROPERTY(Replicated, BlueprintReadOnly)
+	bool bGameStarted = false;
 };

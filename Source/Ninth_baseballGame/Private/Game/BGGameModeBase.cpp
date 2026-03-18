@@ -9,11 +9,6 @@
 void ABGGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
-	
-	SecretNumberString = GenerateSecretNumber();
-	UE_LOG(LogTemp, Error, TEXT("%s"), *SecretNumberString);
-	
-	StartTurn();
 }
 
 void ABGGameModeBase::OnPostLogin(AController* NewPlayer) 
@@ -43,6 +38,11 @@ void ABGGameModeBase::OnPostLogin(AController* NewPlayer)
 				CurrentTurnPlayerIndex = 0;
 				BGGameStateBase->CurrentTurnPlayerName = BGPS->PlayerNameString;
 			}
+		}
+		
+		if (BGGameStateBase->bGameStarted  == true)
+		{
+			BGPlayerController->ClientRPCHideStartWidget();
 		}
 	}
 }
@@ -350,6 +350,8 @@ void ABGGameModeBase::IncreaseGuessCount(ABGPlayerController* InChattingPlayerCo
 
 void ABGGameModeBase::ResetGame(ABGPlayerController* InStartingPlayerController)
 {
+	StopRoundTimer();
+	
 	SecretNumberString = GenerateSecretNumber();
 	UE_LOG(LogTemp, Error, TEXT("%s"), *SecretNumberString);
 
@@ -371,13 +373,13 @@ void ABGGameModeBase::ResetGame(ABGPlayerController* InStartingPlayerController)
 	if (IsValid(BGGameState))
 	{
 		BGGameState->RemainingTime = BGGameState->MaxTime;
-		BGGameState->CurrentTurnPlayerName = TEXT("");
+		BGGameState->bGameStarted = true;
 		BGGameState->ForceNetUpdate();
 	}
-
+	
 	bDidSubmitThisTurn = false;
 	bIsWaitingRestart = false;
-
+	
 	// 리스타트 누른 플레이어를 시작 턴으로 설정
 	if (IsValid(InStartingPlayerController))
 	{
@@ -388,8 +390,6 @@ void ABGGameModeBase::ResetGame(ABGPlayerController* InStartingPlayerController)
 	{
 		CurrentTurnPlayerIndex = 0;
 	}
-
-	StopRoundTimer();
 	StartTurn();
 }
 
@@ -404,6 +404,38 @@ void ABGGameModeBase::JudgeGame(ABGPlayerController* InChattingPlayerController,
 			ShowResultToAllPlayers(FText::FromString(ResultString));
 		}
 	}
+}
+
+void ABGGameModeBase::StartGameByPlayer(ABGPlayerController* InStartingPlayerController)
+{
+	ABGGameStateBase* BGGameState = GetGameState<ABGGameStateBase>();
+	if (IsValid(BGGameState) && BGGameState->bGameStarted == true) return;
+	if (IsValid(InStartingPlayerController) == false) return;
+
+	const int32 FoundIndex = AllPlayerControllers.Find(InStartingPlayerController);
+	if (FoundIndex == INDEX_NONE) return;
+	
+	if (IsValid(BGGameState))
+	{
+		BGGameState->bGameStarted = true;
+	}
+	
+	bIsWaitingRestart = false;
+	bDidSubmitThisTurn = false;
+	CurrentTurnPlayerIndex = FoundIndex;
+
+	SecretNumberString = GenerateSecretNumber();
+	UE_LOG(LogTemp, Error, TEXT("%s"), *SecretNumberString);
+
+	for (ABGPlayerController* BGPlayerController : AllPlayerControllers)
+	{
+		if (IsValid(BGPlayerController))
+		{
+			BGPlayerController->ClientRPCHideStartWidget();
+		}
+	}
+
+	StartTurn();
 }
 
 void ABGGameModeBase::ShowResultToAllPlayers(const FText& InResultText)

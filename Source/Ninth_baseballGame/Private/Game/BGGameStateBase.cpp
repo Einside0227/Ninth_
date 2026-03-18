@@ -33,4 +33,5 @@ void ABGGameStateBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	
 	DOREPLIFETIME(ABGGameStateBase, RemainingTime);
 	DOREPLIFETIME(ABGGameStateBase, CurrentTurnPlayerName);
+	DOREPLIFETIME(ThisClass, bGameStarted);
 }

@@ -28,6 +28,14 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerRPCPrintChatMessageString(const FString& InChatMessageString);
 	
+	// 게임 시작창 숨김
+	UFUNCTION(Client, Reliable)
+	void ClientRPCHideStartWidget();
+	
+	// Start 버튼 눌렀을 때 게임 시작
+	UFUNCTION(Server, Reliable, BlueprintCallable)
+	void ServerRPCRequestGameStart();
+	
 	// 결과창 표시
 	UFUNCTION(Client, Reliable)
 	void ClientRPCShowResultWidget(const FText& InResultText);
@@ -39,7 +47,6 @@ public:
 	// Restart 버튼 눌렀을 때 서버에 재시작 요청
 	UFUNCTION(Server, Reliable, BlueprintCallable)
 	void ServerRPCRequestRestart();
-
 
 protected:
 	UPROPERTY(EditAnywhere, Category="UI")
@@ -53,6 +60,13 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<UUserWidget> NotificationTextWidgetInstance;
+	
+	// 시작 위젯 블루프린트
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="UI")
+	TSubclassOf<UUserWidget> StartWidgetClass;
+
+	UPROPERTY()
+	UUserWidget* StartWidgetInstance;
 	
 	// 결과 위젯 블루프린트
 	UPROPERTY(EditAnywhere, Category="UI")

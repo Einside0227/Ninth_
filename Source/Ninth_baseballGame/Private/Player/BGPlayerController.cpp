@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/TextBlock.h"
 #include "Game/BGGameModeBase.h"
+#include "Game/BGGameStateBase.h"
 #include "Net/UnrealNetwork.h"
 
 ABGPlayerController::ABGPlayerController()
@@ -20,6 +21,8 @@ void ABGPlayerController::BeginPlay()
 	
 	FInputModeUIOnly InputModeUIOnly;
 	SetInputMode(InputModeUIOnly);
+	
+	bShowMouseCursor = true;
 
 	if (IsValid(ChatInputWidgetClass) == true) 	
 	{
@@ -36,6 +39,16 @@ void ABGPlayerController::BeginPlay()
 		if (IsValid(NotificationTextWidgetInstance) == true)
 		{
 			NotificationTextWidgetInstance->AddToViewport();
+		}
+	}
+	ABGGameStateBase* BGGameState = GetWorld()->GetGameState<ABGGameStateBase>();
+	
+	if (IsValid(StartWidgetClass) && (!IsValid(BGGameState) || BGGameState->bGameStarted == false))
+	{
+		StartWidgetInstance = CreateWidget<UUserWidget>(this, StartWidgetClass);
+		if (IsValid(StartWidgetInstance))
+		{
+			StartWidgetInstance->AddToViewport(200);
 		}
 	}
 	
@@ -72,7 +85,33 @@ void ABGPlayerController::PrintChatMessageString(const FString& InChatMessageStr
 	BGFunctionLibrary::MyPrintString(this, InChatMessageString, 10.f);
 }
 
-void ABGPlayerController::ServerRPCRequestRestart_Implementation()
+void ABGPlayerController::ClientRPCPrintChatMessageString_Implementation(const FString& InChatMessageString) 
+{
+	PrintChatMessageString(InChatMessageString);
+}
+
+void ABGPlayerController::ServerRPCPrintChatMessageString_Implementation(const FString& InChatMessageString) 
+{
+	AGameModeBase* GM = UGameplayStatics::GetGameMode(this);
+	if (IsValid(GM) == true) 
+	{
+		ABGGameModeBase* BGGM = Cast<ABGGameModeBase>(GM);
+		if (IsValid(BGGM) == true) 
+		{
+			BGGM->PrintChatMessageString(this, InChatMessageString);
+		}
+	}
+}
+
+void ABGPlayerController::ClientRPCHideStartWidget_Implementation()
+{
+	if (IsValid(StartWidgetInstance))
+	{
+		StartWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
+}
+
+void ABGPlayerController::ServerRPCRequestGameStart_Implementation()
 {
 	AGameModeBase* GM = UGameplayStatics::GetGameMode(this);
 	if (IsValid(GM))
@@ -80,16 +119,8 @@ void ABGPlayerController::ServerRPCRequestRestart_Implementation()
 		ABGGameModeBase* BGGM = Cast<ABGGameModeBase>(GM);
 		if (IsValid(BGGM))
 		{
-			BGGM->ResetGame(this);
+			BGGM->StartGameByPlayer(this);
 		}
-	}
-}
-
-void ABGPlayerController::ClientRPCHideResultWidget_Implementation()
-{
-	if (IsValid(ResultWidgetInstance))
-	{
-		ResultWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
 	}
 }
 
@@ -105,20 +136,23 @@ void ABGPlayerController::ClientRPCShowResultWidget_Implementation(const FText& 
 	}
 }
 
-void ABGPlayerController::ClientRPCPrintChatMessageString_Implementation(const FString& InChatMessageString) 
+void ABGPlayerController::ClientRPCHideResultWidget_Implementation()
 {
-	PrintChatMessageString(InChatMessageString);
+	if (IsValid(ResultWidgetInstance))
+	{
+		ResultWidgetInstance->SetVisibility(ESlateVisibility::Collapsed);
+	}
 }
 
-void ABGPlayerController::ServerRPCPrintChatMessageString_Implementation(const FString& InChatMessageString) 
+void ABGPlayerController::ServerRPCRequestRestart_Implementation()
 {
 	AGameModeBase* GM = UGameplayStatics::GetGameMode(this);
-	if (IsValid(GM) == true) 
+	if (IsValid(GM))
 	{
 		ABGGameModeBase* BGGM = Cast<ABGGameModeBase>(GM);
-		if (IsValid(BGGM) == true) 
+		if (IsValid(BGGM))
 		{
-			BGGM->PrintChatMessageString(this, InChatMessageString);
+			BGGM->ResetGame(this);
 		}
 	}
 }

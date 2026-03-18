@@ -1,6 +1,5 @@
 #include "Player/BGPlayerState.h"
 
-#include "Player/BGPlayerState.h"
 #include "Net/UnrealNetwork.h"
 
 ABGPlayerState::ABGPlayerState() : PlayerNameString(TEXT("None")), CurrentGuessCount(0), MaxGuessCount(3)
